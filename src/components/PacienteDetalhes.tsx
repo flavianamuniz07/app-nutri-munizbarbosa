@@ -21,12 +21,16 @@ import {
   atualizarPaciente, 
   listarConsultasPorPaciente, 
   listarPlanosPorPaciente,
+  salvarPlanoAlimentar,
   type Paciente, 
   type Consulta, 
   type PlanoAlimentar 
 } from '../lib/db'
 import { EvolucaoPesoChart } from './EvolucaoPesoChart'
 import { NovaConsultaModal } from './NovaConsultaModal'
+import { PlanoAlimentarEditor } from './PlanoAlimentarEditor'
+import { PlanoAlimentarViewModal } from './PlanoAlimentarViewModal'
+import type { PlanoSemanalData } from '../types/planoAlimentar'
 
 interface PacienteDetalhesProps {
   patientId: string
@@ -1342,34 +1346,26 @@ export const PacienteDetalhes: React.FC<PacienteDetalhesProps> = ({
       {/* ============================================================ */}
       {mainSection === 'planos' && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-800">Planos Alimentares</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Dietas personalizadas e planos alimentares calculados para o paciente.
-              </p>
-            </div>
-
-            {/* Botão "Gerar Plano Alimentar" bem visível (Prompt 5: sem funcionalidade por enquanto) */}
-            <button
-              type="button"
-              onClick={() => {
-                alert('A geração de planos alimentares será implementada no próximo prompt!')
+          {/* Editor e Gerador de Plano com IA / Manual */}
+          {paciente && (
+            <PlanoAlimentarEditor
+              paciente={paciente}
+              onSave={async (planoData: PlanoSemanalData) => {
+                await salvarPlanoAlimentar(patientId, planoData)
+                await fetchPlanos()
               }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer self-start sm:self-auto"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Gerar Plano Alimentar</span>
-            </button>
-          </div>
+            />
+          )}
 
           {/* Histórico de planos salvos ou mensagem se vazio */}
           <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-800">
-                Histórico de Planos Salvos
-              </h3>
-              <span className="text-xs text-slate-400">Mais recentes primeiro</span>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Histórico de Planos Salvos ({planos.length})
+                </h3>
+                <span className="text-xs text-slate-400">Mais recentes primeiro</span>
+              </div>
             </div>
 
             {loadingPlanos ? (
@@ -1378,7 +1374,6 @@ export const PacienteDetalhes: React.FC<PacienteDetalhesProps> = ({
                 Carregando planos alimentares...
               </div>
             ) : planos.length === 0 ? (
-              /* Mensagem solicitada pelo Prompt 5 se não houver planos salvos */
               <div className="p-12 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
                   <FileText className="w-6 h-6" />
@@ -1387,7 +1382,7 @@ export const PacienteDetalhes: React.FC<PacienteDetalhesProps> = ({
                   Nenhum plano alimentar gerado ainda
                 </h4>
                 <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  Você poderá criar planos alimentares personalizados com cálculo de macronutrientes no próximo prompt.
+                  Clique no botão "✨ Gerar Plano com IA" acima para criar um cardápio semanal personalizado baseado nos dados clínicos do paciente.
                 </p>
               </div>
             ) : (
@@ -1421,7 +1416,7 @@ export const PacienteDetalhes: React.FC<PacienteDetalhesProps> = ({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 group-hover:bg-emerald-600 group-hover:text-white rounded-xl transition-all cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>Ver Conteúdo</span>
+                      <span>Ver Cardápio</span>
                     </button>
                   </div>
                 ))}
@@ -1429,44 +1424,12 @@ export const PacienteDetalhes: React.FC<PacienteDetalhesProps> = ({
             )}
           </div>
 
-          {/* Modal / Visualizador de conteúdo do plano selecionado */}
+          {/* Modal / Visualizador de conteúdo do plano selecionado com suporte a Abas e visual moderno */}
           {selectedPlano && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
-              <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-100 overflow-hidden my-8">
-                <div className="bg-gradient-to-r from-emerald-700 to-teal-700 p-6 text-white flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-6 h-6" />
-                    <div>
-                      <h3 className="text-base font-bold">Conteúdo do Plano Alimentar</h3>
-                      <span className="text-xs text-emerald-200">
-                        Gerado em {new Date(selectedPlano.created_at).toLocaleDateString('pt-BR')}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedPlano(null)}
-                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="p-6 max-h-[60vh] overflow-y-auto">
-                  <pre className="text-xs font-mono bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-800 whitespace-pre-wrap">
-                    {typeof selectedPlano.conteudo === 'string'
-                      ? selectedPlano.conteudo
-                      : JSON.stringify(selectedPlano.conteudo, null, 2)}
-                  </pre>
-                </div>
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-                  <button
-                    onClick={() => setSelectedPlano(null)}
-                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-xl text-xs font-bold text-slate-700 cursor-pointer"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            </div>
+            <PlanoAlimentarViewModal
+              plano={selectedPlano}
+              onClose={() => setSelectedPlano(null)}
+            />
           )}
         </div>
       )}

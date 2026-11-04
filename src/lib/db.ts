@@ -431,6 +431,40 @@ export async function listarConsultasPorPaciente(pacienteId: string): Promise<Co
     .sort((a, b) => new Date(b.data_consulta).getTime() - new Date(a.data_consulta).getTime())
 }
 
+export async function salvarPlanoAlimentar(pacienteId: string, conteudo: any): Promise<PlanoAlimentar> {
+  if (!pacienteId) {
+    throw new Error('paciente_id é obrigatório para salvar o plano alimentar.')
+  }
+
+  if (sql) {
+    try {
+      const conteudoJson = typeof conteudo === 'string' ? conteudo : JSON.stringify(conteudo)
+      const rows = await sql`
+        INSERT INTO planos_alimentares (paciente_id, conteudo)
+        VALUES (${pacienteId}::uuid, ${conteudoJson}::jsonb)
+        RETURNING id, paciente_id, conteudo, created_at;
+      `
+      if (rows && rows.length > 0) {
+        return rows[0] as PlanoAlimentar
+      }
+    } catch (err) {
+      console.warn('Erro ao salvar plano no Neon, usando fallback local:', err)
+    }
+  }
+
+  const localList: PlanoAlimentar[] = JSON.parse(localStorage.getItem('neon_planos_table') || '[]')
+  const novoPlano: PlanoAlimentar = {
+    id: crypto.randomUUID(),
+    paciente_id: pacienteId,
+    conteudo: conteudo,
+    created_at: new Date().toISOString(),
+  }
+
+  localList.unshift(novoPlano)
+  localStorage.setItem('neon_planos_table', JSON.stringify(localList))
+  return novoPlano
+}
+
 export async function listarPlanosPorPaciente(pacienteId: string): Promise<PlanoAlimentar[]> {
   if (!pacienteId) return []
 
